@@ -45,7 +45,18 @@ def create_event(
 def get_all_events(db: Session = Depends(get_db)):
     return db.query(Event).all()
 
+# Student: View my registered events
+@router.get("/my-registrations", response_model=list[RegistrationResponse])
+def get_my_registrations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    registrations = db.query(EventRegistration).filter(
+        EventRegistration.user_id == current_user.id
+    ).all()
 
+    return registrations
+    
 # Public: View a specific event
 @router.get("/{event_id}", response_model=EventResponse)
 def get_event(
