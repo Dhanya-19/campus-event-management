@@ -1,0 +1,60 @@
+name: Deploy Backend to AWS Lambda
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+      - staging
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build Lambda deployment package
+        working-directory: backend
+        run: |
+          mkdir -p build_pkg
+          pip install -r requirements.txt --target build_pkg --upgrade
+          pip install psycopg-binary pydantic-core greenlet bcrypt==4.0.1 cryptography \
+            --platform manylinux_2_17_x86_64 \
+            --target build_pkg \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
+            --upgrade
+          cp -r app build_pkg/app
+          cd build_pkg && zip -r ../campusconnect_api.zip .
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Deploy to Dev Lambda
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          aws lambda update-function-code \
+            --function-name campusconnect-api-dev \
+            --zip-file fileb://backend/campusconnect_api.zip
+
+      - name: Deploy to Prod Lambda
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
+        run: |
+          aws lambda update-function-code \
+            --function-name campusconnect-api \
+            --zip-file fileb://backend/campusconnect_api.zip
