@@ -1,0 +1,12 @@
+
+mangum==0.22.0
+fastapi
+sqlalchemy
+psycopg[binary]
+pydantic
+pydantic[email]
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+python-multipart
+python-dotenv

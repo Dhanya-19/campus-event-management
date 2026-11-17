@@ -1,16 +1,14 @@
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.dependencies import get_current_user, require_admin
 from app.database.database import get_db
 from app.models.event import Event
-from app.schemas.event import EventCreate, EventResponse
-from app.core.dependencies import require_admin, get_current_user
-from app.models.user import User
-
-
-from datetime import datetime, timezone
 from app.models.registration import EventRegistration
+from app.models.user import User
+from app.schemas.event import EventCreate, EventResponse
 from app.schemas.registration import RegistrationResponse
 
 
@@ -19,9 +17,15 @@ router = APIRouter(prefix="/api/events", tags=["Events"])
 
 # Admin: Create a new event
 @router.post(
-    "/",
+    "",
     response_model=EventResponse,
     status_code=status.HTTP_201_CREATED
+)
+@router.post(
+    "/",
+    response_model=EventResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False
 )
 def create_event(
     event_data: EventCreate,
@@ -41,9 +45,24 @@ def create_event(
 
 
 # Public: View all events
-@router.get("/", response_model=list[EventResponse])
+@router.get("", response_model=list[EventResponse])
+@router.get("/", response_model=list[EventResponse], include_in_schema=False)
 def get_all_events(db: Session = Depends(get_db)):
     return db.query(Event).all()
+
+
+# Student: View my registrations
+@router.get(
+    "/my-registrations",
+    response_model=list[RegistrationResponse]
+)
+def get_my_registrations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return db.query(EventRegistration).filter(
+        EventRegistration.user_id == current_user.id
+    ).all()
 
 
 # Public: View a specific event
