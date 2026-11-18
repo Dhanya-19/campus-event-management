@@ -1,12 +1,10 @@
 import socket
-from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from sqlalchemy import text
 
-from app.core.config import DATABASE_URL
 from app.database.database import Base, engine
 from app.models import Event, EventRegistration, User
 from app.routers.auth import router as auth_router
