@@ -42,7 +42,7 @@ app.include_router(events_router)
 def home():
     return {
         "message": "Campus Event Management API is running!",
-        "status": "healthy"
+        "status": "healthy",
     }
 
 
@@ -50,7 +50,7 @@ def home():
 def dns_health():
     hosts = [
         "amazon.com",
-        "campusconnect-db.cvkao2g4kl3c.ap-southeast-2.rds.amazonaws.com"
+        "campusconnect-db.cvkao2g4kl3c.ap-southeast-2.rds.amazonaws.com",
     ]
 
     results = {}
@@ -62,14 +62,12 @@ def dns_health():
             )
             results[host] = {
                 "resolved": True,
-                "addresses": list(set(
-                    item[4][0] for item in addresses
-                ))
+                "addresses": list(set(item[4][0] for item in addresses)),
             }
         except Exception as e:
             results[host] = {
                 "resolved": False,
-                "error": repr(e)
+                "error": repr(e),
             }
 
     return results
