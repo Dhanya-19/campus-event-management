@@ -9,3 +9,10 @@ __pycache__/
 venv/
 **/venv/
 *.zip
+
+backend/lambda_build/
+backend/*.zip
+backend/live_lambda_check/
+frontend/*.zip
+frontend/dist/
+

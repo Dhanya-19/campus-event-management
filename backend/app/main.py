@@ -1,3 +1,4 @@
+import os
 import socket
 
 from fastapi import FastAPI
@@ -5,12 +6,41 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from sqlalchemy import text
 
-from app.database.database import Base, engine
+from app.core.security import hash_password
+from app.database.database import Base, SessionLocal, engine
 from app.models import Event, EventRegistration, User
 from app.routers.auth import router as auth_router
 from app.routers.events import router as events_router
 
 Base.metadata.create_all(bind=engine)
+
+
+def seed_default_admins():
+    admin_email = os.getenv("ADMIN_EMAIL", "dhansuyalwar@gmail.com").strip().lower()
+    admin_password = os.getenv("ADMIN_PASSWORD", "Admin@1234")
+    admin_name = os.getenv("ADMIN_NAME", "Dhanya S Yalwar")
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.email == admin_email).first()
+        if not existing:
+            admin_user = User(
+                name=admin_name,
+                email=admin_email,
+                hashed_password=hash_password(admin_password),
+                role="admin",
+            )
+            db.add(admin_user)
+            db.commit()
+        else:
+            existing.role = "admin"
+            existing.hashed_password = hash_password(admin_password)
+            db.commit()
+    finally:
+        db.close()
+
+
+seed_default_admins()
 
 app = FastAPI(
     title="Campus Event & Hackathon Management System",

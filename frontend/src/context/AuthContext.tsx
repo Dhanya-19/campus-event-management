@@ -1,4 +1,3 @@
-
 import {
   createContext,
   useContext,
@@ -18,7 +17,7 @@ import {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
 }
 
@@ -34,7 +33,6 @@ export function AuthProvider({
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore logged-in user when application loads
   useEffect(() => {
     async function restoreSession() {
       const token = sessionStorage.getItem("access_token");
@@ -58,16 +56,13 @@ export function AuthProvider({
     restoreSession();
   }, []);
 
-  // Login function
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string): Promise<User> {
     await loginUser(email, password);
-
     const currentUser = await getCurrentUser();
-
     setUser(currentUser);
+    return currentUser;
   }
 
-  // Logout function
   function logout() {
     logoutUser();
     setUser(null);
@@ -82,7 +77,6 @@ export function AuthProvider({
   );
 }
 
-// Custom hook
 export function useAuth() {
   const context = useContext(AuthContext);
 
