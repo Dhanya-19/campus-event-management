@@ -16,3 +16,5 @@ backend/live_lambda_check/
 frontend/*.zip
 frontend/dist/
 
+
+.env.local

@@ -27,8 +27,9 @@ jobs:
         if: github.ref == 'refs/heads/dev'
         working-directory: frontend
         env:
-          VITE_API_URL: https://mcjaddk5eukfkw2lfqhm55axx40imigz.lambda-url.ap-southeast-2.on.aws
+          VITE_API_BASE_URL: https://mcjaddk5eukfkw2lfqhm55axx40imigz.lambda-url.ap-southeast-2.on.aws
         run: |
+          rm -f .env.local
           npm ci
           npm run build
           cd dist && zip -r ../frontend-deploy.zip . -q
@@ -37,8 +38,9 @@ jobs:
         if: github.ref == 'refs/heads/main'
         working-directory: frontend
         env:
-          VITE_API_URL: https://dcod7envqkhwqlky7afv4up6440jeoyq.lambda-url.ap-southeast-2.on.aws
+          VITE_API_BASE_URL: https://dcod7envqkhwqlky7afv4up6440jeoyq.lambda-url.ap-southeast-2.on.aws
         run: |
+          rm -f .env.local
           npm ci
           npm run build
           cd dist && zip -r ../frontend-deploy.zip . -q
