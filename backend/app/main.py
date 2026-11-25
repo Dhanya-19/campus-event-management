@@ -1,4 +1,4 @@
-import os
+﻿import os
 import socket
 
 from fastapi import FastAPI
@@ -15,6 +15,21 @@ from app.routers.events import router as events_router
 Base.metadata.create_all(bind=engine)
 
 
+def run_schema_migrations():
+    statements = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT TRUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_name VARCHAR(150);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS usn VARCHAR(50);",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '[]'::jsonb;",
+        "ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS custom_responses JSONB DEFAULT '{}'::jsonb;",
+    ]
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+
+
 def seed_default_admins():
     admin_email = os.getenv("ADMIN_EMAIL", "dhansuyalwar@gmail.com").strip().lower()
     admin_password = os.getenv("ADMIN_PASSWORD", "Admin@1234")
@@ -29,23 +44,26 @@ def seed_default_admins():
                 email=admin_email,
                 hashed_password=hash_password(admin_password),
                 role="admin",
+                is_approved=True,
             )
             db.add(admin_user)
             db.commit()
         else:
             existing.role = "admin"
+            existing.is_approved = True
             existing.hashed_password = hash_password(admin_password)
             db.commit()
     finally:
         db.close()
 
 
+run_schema_migrations()
 seed_default_admins()
 
 app = FastAPI(
     title="Campus Event & Hackathon Management System",
     description="API for managing campus events, hackathons, registrations, and teams.",
-    version="1.0.0",
+    version="1.1.0",
     redirect_slashes=False,
 )
 

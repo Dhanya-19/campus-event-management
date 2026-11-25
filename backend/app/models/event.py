@@ -1,6 +1,6 @@
-
-from sqlalchemy import Column, Integer, String, Text, DateTime
+﻿from sqlalchemy import Column, DateTime, Integer, JSON, String, Text
 from sqlalchemy.sql import func
+
 from app.database.database import Base
 
 
@@ -15,5 +15,6 @@ class Event(Base):
     event_date = Column(DateTime(timezone=True), nullable=False)
     registration_deadline = Column(DateTime(timezone=True), nullable=False)
     max_participants = Column(Integer, nullable=False)
+    custom_fields = Column(JSON, default=list, nullable=True)
     created_by = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
