@@ -1,5 +1,4 @@
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+﻿const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 export class APIError extends Error {
   status: number;
@@ -22,7 +21,6 @@ export async function apiRequest<T>(
   const { auth = false, headers, ...rest } = options;
 
   const token = sessionStorage.getItem("access_token");
-
   const requestHeaders = new Headers(headers);
 
   if (
@@ -37,13 +35,10 @@ export async function apiRequest<T>(
     requestHeaders.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(
-    `${API_BASE_URL}${endpoint}`,
-    {
-      ...rest,
-      headers: requestHeaders,
-    }
-  );
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...rest,
+    headers: requestHeaders,
+  });
 
   const data = await response.json().catch(() => null);
 
@@ -52,8 +47,17 @@ export async function apiRequest<T>(
       sessionStorage.removeItem("access_token");
     }
 
-    const message =
-      data?.detail || "Something went wrong. Please try again.";
+    let message = "Something went wrong. Please try again.";
+    if (typeof data?.detail === "string") {
+      message = data.detail;
+    } else if (Array.isArray(data?.detail)) {
+      message = data.detail
+        .map((item: { loc?: unknown[]; msg?: string }) => {
+          const field = Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : "";
+          return field ? `${String(field)}: ${item.msg ?? "Invalid value"}` : item.msg ?? "Invalid input";
+        })
+        .join(", ");
+    }
 
     throw new APIError(message, response.status);
   }

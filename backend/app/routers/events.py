@@ -20,7 +20,6 @@ from app.schemas.registration import (
     RegistrationResponse,
 )
 
-
 router = APIRouter(prefix="/api/events", tags=["Events"])
 
 
@@ -49,22 +48,12 @@ def _serialize_event(event: Event, registered_count: int) -> EventResponse:
     )
 
 
-# Organiser / Admin: Create a new event
-@router.post(
-    "",
-    response_model=EventResponse,
-    status_code=status.HTTP_201_CREATED
-)
-@router.post(
-    "/",
-    response_model=EventResponse,
-    status_code=status.HTTP_201_CREATED,
-    include_in_schema=False
-)
+@router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED, include_in_schema=False)
 def create_event(
     event_data: EventCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin_or_approved_organiser)
+    current_user: User = Depends(require_admin_or_approved_organiser),
 ):
     payload = event_data.model_dump()
     payload["custom_fields"] = [
@@ -72,27 +61,20 @@ def create_event(
         for f in event_data.custom_fields
     ]
 
-    new_event = Event(
-        **payload,
-        created_by=current_user.id
-    )
-
+    new_event = Event(**payload, created_by=current_user.id)
     db.add(new_event)
     db.commit()
     db.refresh(new_event)
-
     return _serialize_event(new_event, registered_count=0)
 
 
-# Public: View events (active by default; supports search, category, date, include_closed)
 @router.get("", response_model=list[EventResponse])
 @router.get("/", response_model=list[EventResponse], include_in_schema=False)
 def get_all_events(
-    q: str | None = Query(default=None, description="Search by title, description, or venue"),
-    event_type: str | None = Query(default=None, description="Filter by event category/type"),
-    date: str | None = Query(default=None, description="Filter by YYYY-MM-DD event date"),
-    include_closed: bool = Query(default=False, description="Include events past registration deadline"),
-    mine_only: bool = Query(default=False, description="Filter to events created by organiser"),
+    q: str | None = Query(default=None),
+    event_type: str | None = Query(default=None),
+    date: str | None = Query(default=None),
+    include_closed: bool = Query(default=False),
     db: Session = Depends(get_db),
 ):
     query = db.query(Event)
@@ -126,13 +108,10 @@ def get_all_events(
     )
     counts_map = {event_id: count for event_id, count in counts_rows}
 
-    return [
-        _serialize_event(ev, registered_count=counts_map.get(ev.id, 0))
-        for ev in events
-    ]
+    return [_serialize_event(ev, registered_count=counts_map.get(ev.id, 0)) for ev in events]
 
 
-# Organiser / Admin: View events created by current user (or all for admin)
+# Static routes MUST come before /{event_id}
 @router.get("/managed", response_model=list[EventResponse])
 def get_managed_events(
     db: Session = Depends(get_db),
@@ -150,20 +129,13 @@ def get_managed_events(
     )
     counts_map = {event_id: count for event_id, count in counts_rows}
 
-    return [
-        _serialize_event(ev, registered_count=counts_map.get(ev.id, 0))
-        for ev in events
-    ]
+    return [_serialize_event(ev, registered_count=counts_map.get(ev.id, 0)) for ev in events]
 
 
-# Student: View my registrations with event details
-@router.get(
-    "/my-registrations",
-    response_model=list[MyRegistrationDetailResponse]
-)
+@router.get("/my-registrations", response_model=list[MyRegistrationDetailResponse])
 def get_my_registrations(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     rows = (
         db.query(EventRegistration, Event)
@@ -174,48 +146,34 @@ def get_my_registrations(
     )
 
     now = datetime.now(timezone.utc)
-    result = []
-    for reg, ev in rows:
-        result.append(
-            MyRegistrationDetailResponse(
-                id=reg.id,
-                user_id=reg.user_id,
-                event_id=reg.event_id,
-                custom_responses=reg.custom_responses or {},
-                registered_at=reg.registered_at,
-                event_title=ev.title,
-                event_type=ev.event_type,
-                venue=ev.venue,
-                event_date=ev.event_date,
-                registration_deadline=ev.registration_deadline,
-                is_closed=_to_utc(ev.registration_deadline) < now,
-            )
+    return [
+        MyRegistrationDetailResponse(
+            id=reg.id,
+            user_id=reg.user_id,
+            event_id=reg.event_id,
+            custom_responses=reg.custom_responses or {},
+            registered_at=reg.registered_at,
+            event_title=ev.title,
+            event_type=ev.event_type,
+            venue=ev.venue,
+            event_date=ev.event_date,
+            registration_deadline=ev.registration_deadline,
+            is_closed=_to_utc(ev.registration_deadline) < now,
         )
-    return result
+        for reg, ev in rows
+    ]
 
 
-# Public: View a specific event
 @router.get("/{event_id}", response_model=EventResponse)
-def get_event(
-    event_id: int,
-    db: Session = Depends(get_db)
-):
+def get_event(event_id: int, db: Session = Depends(get_db)):
     event = db.query(Event).filter(Event.id == event_id).first()
-
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
-    reg_count = db.query(EventRegistration).filter(
-        EventRegistration.event_id == event_id
-    ).count()
-
+    reg_count = db.query(EventRegistration).filter(EventRegistration.event_id == event_id).count()
     return _serialize_event(event, registered_count=reg_count)
 
 
-# Organiser / Admin: Update an existing event
 @router.patch("/{event_id}", response_model=EventResponse)
 def update_event(
     event_id: int,
@@ -228,10 +186,7 @@ def update_event(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     if current_user.role != "admin" and event.created_by != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only edit events you created"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only edit events you created")
 
     updates = event_data.model_dump(exclude_unset=True)
     if "custom_fields" in updates and updates["custom_fields"] is not None:
@@ -246,14 +201,10 @@ def update_event(
     db.commit()
     db.refresh(event)
 
-    reg_count = db.query(EventRegistration).filter(
-        EventRegistration.event_id == event_id
-    ).count()
-
+    reg_count = db.query(EventRegistration).filter(EventRegistration.event_id == event_id).count()
     return _serialize_event(event, registered_count=reg_count)
 
 
-# Organiser / Admin: View registered students for an event
 @router.get("/{event_id}/registrations", response_model=list[EventParticipantResponse])
 def get_event_registrations(
     event_id: int,
@@ -265,10 +216,7 @@ def get_event_registrations(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     if current_user.role != "admin" and event.created_by != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You can only view registrations for events you created"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only view registrations for events you created")
 
     rows = (
         db.query(EventRegistration, User)
@@ -294,54 +242,30 @@ def get_event_registrations(
     ]
 
 
-# Student: Register for an event (supports optional custom_responses)
-@router.post(
-    "/{event_id}/register",
-    response_model=RegistrationResponse,
-    status_code=status.HTTP_201_CREATED
-)
+@router.post("/{event_id}/register", response_model=RegistrationResponse, status_code=status.HTTP_201_CREATED)
 def register_for_event(
     event_id: int,
     payload: RegistrationCreate | None = Body(default=None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     event = db.query(Event).filter(Event.id == event_id).first()
-
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
-    now = datetime.now(timezone.utc)
-
-    if _to_utc(event.registration_deadline) < now:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Registration deadline has passed"
-        )
+    if _to_utc(event.registration_deadline) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Registration deadline has passed")
 
     existing_registration = db.query(EventRegistration).filter(
         EventRegistration.user_id == current_user.id,
-        EventRegistration.event_id == event_id
+        EventRegistration.event_id == event_id,
     ).first()
-
     if existing_registration:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="You are already registered for this event"
-        )
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="You are already registered for this event")
 
-    total_registrations = db.query(EventRegistration).filter(
-        EventRegistration.event_id == event_id
-    ).count()
-
+    total_registrations = db.query(EventRegistration).filter(EventRegistration.event_id == event_id).count()
     if total_registrations >= event.max_participants:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Event is full"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Event is full")
 
     responses = payload.custom_responses if payload else {}
     for field in (event.custom_fields or []):
@@ -350,7 +274,7 @@ def register_for_event(
             if val is None or str(val).strip() == "":
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"Missing required field: {field.get('label', field.get('name'))}"
+                    detail=f"Missing required field: {field.get('label', field.get('name'))}",
                 )
 
     registration = EventRegistration(
@@ -358,49 +282,32 @@ def register_for_event(
         event_id=event_id,
         custom_responses=responses,
     )
-
     db.add(registration)
     db.commit()
     db.refresh(registration)
-
     return registration
 
 
-# Student: Unregister from an event before deadline
-@router.delete(
-    "/{event_id}/register",
-    status_code=status.HTTP_200_OK
-)
+@router.delete("/{event_id}/register", status_code=status.HTTP_200_OK)
 def unregister_from_event(
     event_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
 ):
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Event not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
 
     if _to_utc(event.registration_deadline) < datetime.now(timezone.utc):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot unregister after the registration deadline has passed"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot unregister after the registration deadline has passed")
 
     registration = db.query(EventRegistration).filter(
         EventRegistration.user_id == current_user.id,
-        EventRegistration.event_id == event_id
+        EventRegistration.event_id == event_id,
     ).first()
-
     if not registration:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="You are not registered for this event"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="You are not registered for this event")
 
     db.delete(registration)
     db.commit()
-
     return {"message": "Unregistered from event successfully"}
