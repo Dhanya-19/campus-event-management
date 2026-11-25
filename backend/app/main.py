@@ -1,5 +1,6 @@
 ﻿import os
 import socket
+import traceback
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,14 @@ from app.models import Event, EventRegistration, User
 from app.routers.auth import router as auth_router
 from app.routers.events import router as events_router
 
-Base.metadata.create_all(bind=engine)
+STARTUP_ERRORS: list[str] = []
+
+
+def init_database():
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        STARTUP_ERRORS.append(f"create_all failed:\n{traceback.format_exc()}")
 
 
 def run_schema_migrations():
@@ -25,9 +33,12 @@ def run_schema_migrations():
         "ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '[]'::jsonb;",
         "ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS custom_responses JSONB DEFAULT '{}'::jsonb;",
     ]
-    with engine.begin() as conn:
-        for stmt in statements:
-            conn.execute(text(stmt))
+    try:
+        with engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+    except Exception:
+        STARTUP_ERRORS.append(f"migration failed:\n{traceback.format_exc()}")
 
 
 def seed_default_admins():
@@ -53,10 +64,14 @@ def seed_default_admins():
             existing.is_approved = True
             existing.hashed_password = hash_password(admin_password)
             db.commit()
+    except Exception:
+        db.rollback()
+        STARTUP_ERRORS.append(f"seed_default_admins failed:\n{traceback.format_exc()}")
     finally:
         db.close()
 
 
+init_database()
 run_schema_migrations()
 seed_default_admins()
 
@@ -89,6 +104,7 @@ def home():
     return {
         "message": "Campus Event Management API is running!",
         "status": "healthy",
+        "startup_errors": STARTUP_ERRORS,
     }
 
 
@@ -121,7 +137,7 @@ def dns_health():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "startup_errors": STARTUP_ERRORS}
 
 
 @app.get("/db-health")
@@ -129,9 +145,9 @@ def database_health():
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-        return {"database": "connected"}
+        return {"database": "connected", "startup_errors": STARTUP_ERRORS}
     except Exception as e:
-        return {"database": "error", "detail": str(e)}
+        return {"database": "error", "detail": str(e), "startup_errors": STARTUP_ERRORS}
 
 
 handler = Mangum(app)
