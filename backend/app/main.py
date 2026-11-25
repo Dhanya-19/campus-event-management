@@ -1,5 +1,4 @@
 ﻿import os
-import socket
 import traceback
 
 from fastapi import FastAPI
@@ -7,73 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from sqlalchemy import text
 
-from app.core.security import hash_password
-from app.database.database import Base, SessionLocal, engine
-from app.models import Event, EventRegistration, User
-from app.routers.auth import router as auth_router
-from app.routers.events import router as events_router
-
 STARTUP_ERRORS: list[str] = []
-
-
-def init_database():
-    try:
-        Base.metadata.create_all(bind=engine)
-    except Exception:
-        STARTUP_ERRORS.append(f"create_all failed:\n{traceback.format_exc()}")
-
-
-def run_schema_migrations():
-    statements = [
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT TRUE;",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_name VARCHAR(150);",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS usn VARCHAR(50);",
-        "ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '[]'::jsonb;",
-        "ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS custom_responses JSONB DEFAULT '{}'::jsonb;",
-    ]
-    try:
-        with engine.begin() as conn:
-            for stmt in statements:
-                conn.execute(text(stmt))
-    except Exception:
-        STARTUP_ERRORS.append(f"migration failed:\n{traceback.format_exc()}")
-
-
-def seed_default_admins():
-    admin_email = os.getenv("ADMIN_EMAIL", "dhansuyalwar@gmail.com").strip().lower()
-    admin_password = os.getenv("ADMIN_PASSWORD", "Admin@1234")
-    admin_name = os.getenv("ADMIN_NAME", "Dhanya S Yalwar")
-
-    db = SessionLocal()
-    try:
-        existing = db.query(User).filter(User.email == admin_email).first()
-        if not existing:
-            admin_user = User(
-                name=admin_name,
-                email=admin_email,
-                hashed_password=hash_password(admin_password),
-                role="admin",
-                is_approved=True,
-            )
-            db.add(admin_user)
-            db.commit()
-        else:
-            existing.role = "admin"
-            existing.is_approved = True
-            existing.hashed_password = hash_password(admin_password)
-            db.commit()
-    except Exception:
-        db.rollback()
-        STARTUP_ERRORS.append(f"seed_default_admins failed:\n{traceback.format_exc()}")
-    finally:
-        db.close()
-
-
-init_database()
-run_schema_migrations()
-seed_default_admins()
 
 app = FastAPI(
     title="Campus Event & Hackathon Management System",
@@ -95,8 +28,58 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router)
-app.include_router(events_router)
+try:
+    from app.core.security import hash_password
+    from app.database.database import Base, SessionLocal, engine
+    from app.models import Event, EventRegistration, User
+    from app.routers.auth import router as auth_router
+    from app.routers.events import router as events_router
+
+    Base.metadata.create_all(bind=engine)
+
+    statements = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT TRUE;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS organization_name VARCHAR(150);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS department VARCHAR(100);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30);",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS usn VARCHAR(50);",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS custom_fields JSONB DEFAULT '[]'::jsonb;",
+        "ALTER TABLE event_registrations ADD COLUMN IF NOT EXISTS custom_responses JSONB DEFAULT '{}'::jsonb;",
+    ]
+    with engine.begin() as conn:
+        for stmt in statements:
+            conn.execute(text(stmt))
+
+    admin_email = os.getenv("ADMIN_EMAIL", "dhansuyalwar@gmail.com").strip().lower()
+    admin_password = os.getenv("ADMIN_PASSWORD", "Admin@1234")
+    admin_name = os.getenv("ADMIN_NAME", "Dhanya S Yalwar")
+
+    db = SessionLocal()
+    try:
+        existing = db.query(User).filter(User.email == admin_email).first()
+        if not existing:
+            db.add(
+                User(
+                    name=admin_name,
+                    email=admin_email,
+                    hashed_password=hash_password(admin_password),
+                    role="admin",
+                    is_approved=True,
+                )
+            )
+            db.commit()
+        else:
+            existing.role = "admin"
+            existing.is_approved = True
+            existing.hashed_password = hash_password(admin_password)
+            db.commit()
+    finally:
+        db.close()
+
+    app.include_router(auth_router)
+    app.include_router(events_router)
+except Exception:
+    STARTUP_ERRORS.append(traceback.format_exc())
 
 
 @app.get("/")
@@ -108,33 +91,6 @@ def home():
     }
 
 
-@app.get("/dns-health")
-def dns_health():
-    hosts = [
-        "amazon.com",
-        "campusconnect-db.cvkao2g4kl3c.ap-southeast-2.rds.amazonaws.com",
-    ]
-
-    results = {}
-
-    for host in hosts:
-        try:
-            addresses = socket.getaddrinfo(
-                host, 443, type=socket.SOCK_STREAM
-            )
-            results[host] = {
-                "resolved": True,
-                "addresses": list(set(item[4][0] for item in addresses)),
-            }
-        except Exception as e:
-            results[host] = {
-                "resolved": False,
-                "error": repr(e),
-            }
-
-    return results
-
-
 @app.get("/health")
 def health_check():
     return {"status": "ok", "startup_errors": STARTUP_ERRORS}
@@ -143,6 +99,7 @@ def health_check():
 @app.get("/db-health")
 def database_health():
     try:
+        from app.database.database import engine
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
         return {"database": "connected", "startup_errors": STARTUP_ERRORS}
