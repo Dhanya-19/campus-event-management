@@ -1,41 +1,51 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, RefreshCw, Ticket } from "lucide-react";
+import { CalendarDays, RefreshCw, Search, Ticket, Trash2 } from "lucide-react";
 
-import { getAllEvents, getMyRegistrations, registerForEvent } from "../api/events";
+import {
+  getAllEvents,
+  getMyRegistrations,
+  registerForEvent,
+  unregisterFromEvent,
+} from "../api/events";
 import { useAuth } from "../context/AuthContext";
-import type { Event } from "../types/event";
+import type { Event, MyRegistrationDetail } from "../types/event";
 import AppShell from "../components/AppShell";
 import EventCard from "../components/EventCard";
 import { Alert, EmptyState, EventSkeletons } from "../components/ui";
 import { firstName, registrationStatus } from "../lib/format";
 
+const CATEGORIES = ["All", "Hackathon", "Workshop", "Seminar", "Competition", "Cultural", "Technical"];
+
 export default function StudentDashboard() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [myRegistrations, setMyRegistrations] = useState<MyRegistrationDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [registering, setRegistering] = useState<number | null>(null);
+  const [actionId, setActionId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [category, setCategory] = useState("All");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [registeredEventIds, setRegisteredEventIds] = useState<Set<number>>(new Set());
 
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  const registeredEventIds = new Set(myRegistrations.map((r) => r.event_id));
   const registeredEvents = events.filter((event) => registeredEventIds.has(event.id));
   const availableEvents = events.filter((event) => !registeredEventIds.has(event.id));
 
-  async function fetchEvents() {
+  async function fetchEvents(q = searchQuery, cat = category) {
     try {
       setLoading(true);
       setError("");
 
       const [eventsData, registrationsData] = await Promise.all([
-        getAllEvents(),
+        getAllEvents({ q, event_type: cat, include_closed: true }),
         getMyRegistrations(),
       ]);
 
       setEvents(eventsData);
-      setRegisteredEventIds(new Set(registrationsData.map((r) => r.event_id)));
+      setMyRegistrations(registrationsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load events.");
     } finally {
@@ -45,27 +55,42 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [category]);
 
-  async function handleRegister(eventId: number) {
+  async function handleRegister(event: Event) {
+    if ((event.custom_fields || []).length > 0) {
+      navigate(`/events/${event.id}`);
+      return;
+    }
+
     try {
-      setRegistering(eventId);
+      setActionId(event.id);
       setMessage("");
       setError("");
 
-      await registerForEvent(eventId);
-
-      setRegisteredEventIds((previous) => {
-        const updated = new Set(previous);
-        updated.add(eventId);
-        return updated;
-      });
-
+      await registerForEvent(event.id);
+      await fetchEvents();
       setMessage("Successfully registered for the event!");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");
     } finally {
-      setRegistering(null);
+      setActionId(null);
+    }
+  }
+
+  async function handleUnregister(eventId: number) {
+    try {
+      setActionId(eventId);
+      setMessage("");
+      setError("");
+
+      await unregisterFromEvent(eventId);
+      await fetchEvents();
+      setMessage("Unregistered from the event.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to unregister.");
+    } finally {
+      setActionId(null);
     }
   }
 
@@ -85,34 +110,70 @@ export default function StudentDashboard() {
             <p className="text-xs text-muted">Available</p>
           </div>
           <div className="panel px-5 py-3">
-            <p className="font-display text-2xl font-bold text-ok">{registeredEvents.length}</p>
+            <p className="font-display text-2xl font-bold text-ok">{myRegistrations.length}</p>
             <p className="text-xs text-muted">Registered</p>
           </div>
         </div>
       </section>
 
-      <div className="mt-8 space-y-3">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            fetchEvents();
+          }}
+          className="relative min-w-[15rem] flex-1"
+        >
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={17} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search events by title, venue, or keyword..."
+            className="input input-icon"
+          />
+        </form>
+
+        <div className="flex flex-wrap gap-1.5">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategory(cat)}
+              className={`rounded-lg px-3 py-2 text-xs font-medium transition ${
+                category === cat
+                  ? "bg-accent text-ink"
+                  : "border border-line bg-panel text-muted hover:text-white"
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        <button onClick={() => fetchEvents()} disabled={loading} className="btn btn-outline">
+          <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
+
+      <div className="mt-6 space-y-3">
         {message && <Alert kind="success">{message}</Alert>}
         {error && <Alert kind="error">{error}</Alert>}
       </div>
 
-      {/* Available events */}
       <section className="mt-8">
-        <div className="mb-5 flex items-center justify-between">
+        <div className="mb-5">
           <h2 className="text-xl font-semibold">Available events</h2>
-          <button onClick={fetchEvents} disabled={loading} className="btn btn-outline">
-            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
         </div>
 
         {loading && <EventSkeletons />}
 
         {!loading && !error && availableEvents.length === 0 && (
-          <EmptyState icon={<CalendarDays size={22} />} title="You're all caught up">
+          <EmptyState icon={<CalendarDays size={22} />} title="No matching available events">
             {events.length === 0
-              ? "No events have been published yet. Check back soon."
-              : "You have registered for every available event."}
+              ? "No events match your current search or filter."
+              : "You have registered for every matching event."}
           </EmptyState>
         )}
 
@@ -120,6 +181,8 @@ export default function StudentDashboard() {
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {availableEvents.map((event) => {
               const closed = registrationStatus(event) === "closed";
+              const isFull = (event.registered_count ?? 0) >= event.max_participants;
+              const hasQuestions = (event.custom_fields || []).length > 0;
               return (
                 <EventCard
                   key={event.id}
@@ -130,11 +193,19 @@ export default function StudentDashboard() {
                         View details
                       </button>
                       <button
-                        onClick={() => handleRegister(event.id)}
-                        disabled={registering === event.id || closed}
+                        onClick={() => handleRegister(event)}
+                        disabled={actionId === event.id || closed || isFull}
                         className="btn btn-primary"
                       >
-                        {registering === event.id ? "Registering…" : closed ? "Closed" : "Register"}
+                        {actionId === event.id
+                          ? "Registering..."
+                          : closed
+                            ? "Closed"
+                            : isFull
+                              ? "Full"
+                              : hasQuestions
+                                ? "Fill & Register"
+                                : "Register"}
                       </button>
                     </div>
                   }
@@ -145,7 +216,6 @@ export default function StudentDashboard() {
         )}
       </section>
 
-      {/* My registrations */}
       <section className="mt-14">
         <div className="mb-5">
           <h2 className="text-xl font-semibold">My registrations</h2>
@@ -160,18 +230,31 @@ export default function StudentDashboard() {
           </EmptyState>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {registeredEvents.map((event) => (
-              <EventCard
-                key={event.id}
-                event={event}
-                registered
-                footer={
-                  <button onClick={() => navigate(`/events/${event.id}`)} className="btn btn-outline w-full">
-                    View event
-                  </button>
-                }
-              />
-            ))}
+            {registeredEvents.map((event) => {
+              const closed = registrationStatus(event) === "closed";
+              return (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  registered
+                  footer={
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button onClick={() => navigate(`/events/${event.id}`)} className="btn btn-outline">
+                        View ticket
+                      </button>
+                      <button
+                        onClick={() => handleUnregister(event.id)}
+                        disabled={actionId === event.id || closed}
+                        className="btn btn-outline text-danger hover:border-danger"
+                      >
+                        <Trash2 size={14} />
+                        {closed ? "Locked" : "Unregister"}
+                      </button>
+                    </div>
+                  }
+                />
+              );
+            })}
           </div>
         )}
       </section>

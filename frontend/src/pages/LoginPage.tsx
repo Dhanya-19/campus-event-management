@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { GraduationCap, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
@@ -39,20 +39,20 @@ export default function LoginPage() {
       const loggedInUser = await login(email.trim(), password);
       const role = loggedInUser.role.toLowerCase();
 
-      if (portal === "admin" && role !== "admin") {
+      if (portal === "admin" && role !== "admin" && role !== "organiser") {
         logout();
-        setError("Access denied. This account does not have admin privileges.");
+        setError("Access denied. This account does not have organiser or admin privileges.");
         return;
       }
 
-      if (portal === "student" && role === "admin") {
+      if (portal === "student" && (role === "admin" || role === "organiser")) {
         logout();
-        setError("Please use the Admin Login tab to sign in with an admin account.");
+        setError("Please use the Organiser / Admin tab to sign in with this account.");
         return;
       }
 
       navigate(
-        role === "admin" ? "/admin-dashboard" : "/student-dashboard",
+        role === "admin" || role === "organiser" ? "/admin-dashboard" : "/student-dashboard",
         { replace: true }
       );
     } catch (err) {
@@ -64,7 +64,6 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
-      {/* Portal Switcher: Student Login vs Admin Login */}
       <div
         role="tablist"
         aria-label="Login portal"
@@ -97,27 +96,25 @@ export default function LoginPage() {
           }`}
         >
           <ShieldCheck size={16} />
-          Admin Login
+          Organiser / Admin
         </button>
       </div>
 
       <h1 className="text-3xl font-bold">
-        {portal === "admin" ? "Admin Portal" : "Welcome back"}
+        {portal === "admin" ? "Organiser & Admin Portal" : "Welcome back"}
       </h1>
       <p className="mt-2 text-sm text-muted">
         {portal === "admin"
-          ? "Sign in with your administrator credentials to manage campus events."
+          ? "Sign in with your approved organiser or administrator credentials."
           : "Log in to see events and manage your registrations."}
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5" noValidate>
-        {notice && !error && portal === "student" && (
-          <Alert kind="success">{notice}</Alert>
-        )}
+        {notice && !error && <Alert kind="success">{notice}</Alert>}
 
         <div>
           <label htmlFor="email" className="label">
-            {portal === "admin" ? "Admin email" : "Email address"}
+            Email address
           </label>
           <div className="relative">
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" size={17} />
@@ -127,7 +124,7 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder={portal === "admin" ? "admin@campusconnect.edu" : "you@example.com"}
+              placeholder={portal === "admin" ? "organiser@campusconnect.edu" : "you@example.com"}
               className="input input-icon"
             />
           </div>
@@ -153,21 +150,19 @@ export default function LoginPage() {
 
         <button type="submit" disabled={loading} className="btn btn-primary w-full py-3">
           {loading
-            ? "Logging in…"
+            ? "Logging in..."
             : portal === "admin"
-              ? "Log in as Admin"
+              ? "Log in to Portal"
               : "Log in as Student"}
         </button>
       </form>
 
-      {portal === "student" && (
-        <p className="mt-8 text-center text-sm text-muted">
-          New to CampusConnect?{" "}
-          <Link to="/register" className="font-medium text-accent hover:underline">
-            Create an account
-          </Link>
-        </p>
-      )}
+      <p className="mt-8 text-center text-sm text-muted">
+        New to CampusConnect?{" "}
+        <Link to="/register" className="font-medium text-accent hover:underline">
+          Create a student or organiser account
+        </Link>
+      </p>
     </AuthLayout>
   );
 }

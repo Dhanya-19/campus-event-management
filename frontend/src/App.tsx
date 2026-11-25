@@ -1,11 +1,7 @@
-
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
+﻿import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
-
 import ProtectedRoute from "./components/ProtectedRoute";
 import RoleGuard from "./components/RoleGuard";
-
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import StudentDashboard from "./pages/StudentDashboard";
@@ -23,7 +19,8 @@ function HomeRedirect() {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role.toLowerCase() === "admin") {
+  const role = user.role.toLowerCase();
+  if (role === "admin" || role === "organiser") {
     return <Navigate to="/admin-dashboard" replace />;
   }
 
@@ -33,30 +30,21 @@ function HomeRedirect() {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
-
-      {/* Redirect based on role */}
       <Route path="/" element={<HomeRedirect />} />
 
-      {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
-        
-        {/* Student routes */}
-        <Route element={<RoleGuard allowedRole="student" />}>
+        <Route element={<RoleGuard allowedRoles={["student"]} />}>
           <Route path="/student-dashboard" element={<StudentDashboard />} />
           <Route path="/events/:id" element={<EventDetailsPage />} />
         </Route>
 
-        {/* Admin routes */}
-        <Route element={<RoleGuard allowedRole="admin" />}>
+        <Route element={<RoleGuard allowedRoles={["admin", "organiser"]} />}>
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
         </Route>
-
       </Route>
 
-      {/* Unknown routes */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

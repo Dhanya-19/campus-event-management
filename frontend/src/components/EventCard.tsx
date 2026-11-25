@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+﻿import type { ReactNode } from "react";
 import { Clock, MapPin, Users } from "lucide-react";
 import type { Event } from "../types/event";
 import { dateParts, formatDateTime, registrationStatus } from "../lib/format";
@@ -20,16 +20,15 @@ export default function EventCard({
 }) {
   const { day, month, time } = dateParts(event.event_date);
   const status = statusChip[registrationStatus(event)];
+  const count = event.registered_count ?? 0;
 
   return (
     <article className="group relative flex overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-accent/50">
-      {/* Ticket stub */}
       <div className="flex w-20 shrink-0 flex-col items-center justify-center border-r border-dashed border-line bg-raised px-2 py-5 text-center">
         <span className="font-display text-3xl font-bold leading-none text-white">{day}</span>
         <span className="mt-1 text-xs font-medium text-accent">{month}</span>
         <span className="mt-2 text-[11px] leading-tight text-muted">{time}</span>
       </div>
-      {/* Perforation notches */}
       <span aria-hidden="true" className="absolute -top-2 left-[calc(5rem-0.5rem)] h-4 w-4 rounded-full border border-line bg-ink" />
       <span aria-hidden="true" className="absolute -bottom-2 left-[calc(5rem-0.5rem)] h-4 w-4 rounded-full border border-line bg-ink" />
 
@@ -55,7 +54,7 @@ export default function EventCard({
           </li>
           <li className="flex items-center gap-2.5">
             <Users size={15} className="shrink-0 text-muted" />
-            Up to {event.max_participants} participants
+            {count} / {event.max_participants} registered
           </li>
           <li className="flex items-center gap-2.5">
             <Clock size={15} className="shrink-0 text-muted" />
