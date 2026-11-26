@@ -63,3 +63,16 @@ export function approveOrganiser(userId: number, approved = true) {
 export function logoutUser() {
   sessionStorage.removeItem("access_token");
 }
+
+export async function loginWithGoogleToken(idToken: string): Promise<void> {
+  const data = await apiRequest<{
+    access_token: string;
+    token_type: string;
+    role: string;
+  }>("/api/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ id_token: idToken }),
+  });
+
+  sessionStorage.setItem("access_token", data.access_token);
+}
