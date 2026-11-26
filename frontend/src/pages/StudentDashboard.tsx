@@ -76,6 +76,11 @@ export default function StudentDashboard() {
       return;
     }
 
+    const confirmed = window.confirm(
+      `Confirm your registration for "${event.title}" at ${event.venue}?`,
+    );
+    if (!confirmed) return;
+
     try {
       setActionId(event.id);
       setMessage("");
@@ -91,13 +96,18 @@ export default function StudentDashboard() {
     }
   }
 
-  async function handleUnregister(eventId: number) {
+  async function handleUnregister(event: Event) {
+    const confirmed = window.confirm(
+      `Are you sure you want to unregister from "${event.title}"?`,
+    );
+    if (!confirmed) return;
+
     try {
-      setActionId(eventId);
+      setActionId(event.id);
       setMessage("");
       setError("");
 
-      await unregisterFromEvent(eventId);
+      await unregisterFromEvent(event.id);
       await fetchEvents();
       setMessage("Unregistered from the event.");
     } catch (err) {
@@ -199,6 +209,7 @@ export default function StudentDashboard() {
                 <EventCard
                   key={event.id}
                   event={event}
+                  onClick={() => navigate(`/events/${event.id}`)}
                   footer={
                     <div className="grid grid-cols-2 gap-2.5">
                       <button onClick={() => navigate(`/events/${event.id}`)} className="btn btn-outline">
@@ -247,13 +258,14 @@ export default function StudentDashboard() {
                   key={event.id}
                   event={event}
                   registered
+                  onClick={() => navigate(`/events/${event.id}`)}
                   footer={
                     <div className="grid grid-cols-2 gap-2.5">
                       <button onClick={() => navigate(`/events/${event.id}`)} className="btn btn-outline">
                         View ticket
                       </button>
                       <button
-                        onClick={() => handleUnregister(event.id)}
+                        onClick={() => handleUnregister(event)}
                         disabled={actionId === event.id || closed}
                         className="btn btn-outline text-danger hover:border-danger"
                       >
@@ -281,6 +293,7 @@ export default function StudentDashboard() {
               <EventCard
                 key={event.id}
                 event={event}
+                onClick={() => navigate(`/events/${event.id}`)}
                 footer={
                   <div className="grid grid-cols-2 gap-2.5">
                     <button onClick={() => navigate(`/events/${event.id}`)} className="btn btn-outline">

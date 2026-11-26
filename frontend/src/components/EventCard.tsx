@@ -12,10 +12,12 @@ const statusChip = {
 export default function EventCard({
   event,
   registered = false,
+  onClick,
   footer,
 }: {
   event: Event;
   registered?: boolean;
+  onClick?: () => void;
   footer?: ReactNode;
 }) {
   const { day, month, time } = dateParts(event.event_date);
@@ -23,7 +25,24 @@ export default function EventCard({
   const count = event.registered_count ?? 0;
 
   return (
-    <article className="group relative flex overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-accent/50">
+    <article
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`group relative flex overflow-hidden rounded-2xl border border-line bg-panel transition-colors hover:border-accent/50 ${
+        onClick ? "cursor-pointer" : ""
+      }`}
+    >
       <div className="flex w-20 shrink-0 flex-col items-center justify-center border-r border-dashed border-line bg-raised px-2 py-5 text-center">
         <span className="font-display text-3xl font-bold leading-none text-white">{day}</span>
         <span className="mt-1 text-xs font-medium text-accent">{month}</span>
@@ -42,7 +61,7 @@ export default function EventCard({
           )}
         </div>
 
-        <h3 className="mt-2 text-lg font-semibold leading-snug">{event.title}</h3>
+        <h3 className="mt-2 text-lg font-semibold leading-snug group-hover:text-accent">{event.title}</h3>
         <p className="mt-1.5 line-clamp-2 min-h-[2.5rem] text-sm leading-5 text-muted">
           {event.description || "No description available."}
         </p>
@@ -62,7 +81,11 @@ export default function EventCard({
           </li>
         </ul>
 
-        {footer && <div className="mt-auto pt-5">{footer}</div>}
+        {footer && (
+          <div className="mt-auto pt-5" onClick={(e) => e.stopPropagation()}>
+            {footer}
+          </div>
+        )}
       </div>
     </article>
   );
