@@ -1,6 +1,6 @@
 ﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CalendarDays, RefreshCw, Search, Ticket, Trash2 } from "lucide-react";
+import { CalendarDays, Lock, RefreshCw, Search, Ticket, Trash2 } from "lucide-react";
 
 import {
   getAllEvents,
@@ -31,8 +31,16 @@ export default function StudentDashboard() {
   const navigate = useNavigate();
 
   const registeredEventIds = new Set(myRegistrations.map((r) => r.event_id));
+  const isEventClosed = (event: Event) =>
+    Boolean(event.is_closed) || registrationStatus(event) === "closed";
+
   const registeredEvents = events.filter((event) => registeredEventIds.has(event.id));
-  const availableEvents = events.filter((event) => !registeredEventIds.has(event.id));
+  const availableEvents = events.filter(
+    (event) => !registeredEventIds.has(event.id) && !isEventClosed(event),
+  );
+  const closedEvents = events.filter(
+    (event) => !registeredEventIds.has(event.id) && isEventClosed(event),
+  );
 
   async function fetchEvents(q = searchQuery, cat = category) {
     try {
@@ -58,6 +66,11 @@ export default function StudentDashboard() {
   }, [category]);
 
   async function handleRegister(event: Event) {
+    if (isEventClosed(event)) {
+      setError("Registration for this event is closed.");
+      return;
+    }
+
     if ((event.custom_fields || []).length > 0) {
       navigate(`/events/${event.id}`);
       return;
@@ -172,15 +185,14 @@ export default function StudentDashboard() {
         {!loading && !error && availableEvents.length === 0 && (
           <EmptyState icon={<CalendarDays size={22} />} title="No matching available events">
             {events.length === 0
-              ? "No events match your current search or filter."
-              : "You have registered for every matching event."}
+              ? "No open events match your current search or filter."
+              : "There are no open unregistered events matching your current filter."}
           </EmptyState>
         )}
 
         {!loading && availableEvents.length > 0 && (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {availableEvents.map((event) => {
-              const closed = registrationStatus(event) === "closed";
               const isFull = (event.registered_count ?? 0) >= event.max_participants;
               const hasQuestions = (event.custom_fields || []).length > 0;
               return (
@@ -194,18 +206,16 @@ export default function StudentDashboard() {
                       </button>
                       <button
                         onClick={() => handleRegister(event)}
-                        disabled={actionId === event.id || closed || isFull}
+                        disabled={actionId === event.id || isFull}
                         className="btn btn-primary"
                       >
                         {actionId === event.id
                           ? "Registering..."
-                          : closed
-                            ? "Closed"
-                            : isFull
-                              ? "Full"
-                              : hasQuestions
-                                ? "Fill & Register"
-                                : "Register"}
+                          : isFull
+                            ? "Full"
+                            : hasQuestions
+                              ? "Fill & Register"
+                              : "Register"}
                       </button>
                     </div>
                   }
@@ -231,7 +241,7 @@ export default function StudentDashboard() {
         ) : (
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {registeredEvents.map((event) => {
-              const closed = registrationStatus(event) === "closed";
+              const closed = isEventClosed(event);
               return (
                 <EventCard
                   key={event.id}
@@ -258,6 +268,35 @@ export default function StudentDashboard() {
           </div>
         )}
       </section>
+
+      {!loading && closedEvents.length > 0 && (
+        <section className="mt-14">
+          <div className="mb-5">
+            <h2 className="text-xl font-semibold">Closed events</h2>
+            <p className="mt-1 text-sm text-muted">Registration deadlines have passed for these events.</p>
+          </div>
+
+          <div className="grid gap-5 opacity-80 md:grid-cols-2 lg:grid-cols-3">
+            {closedEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                footer={
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button onClick={() => navigate(`/events/${event.id}`)} className="btn btn-outline">
+                      View details
+                    </button>
+                    <button disabled className="btn btn-outline cursor-not-allowed opacity-60">
+                      <Lock size={14} />
+                      Closed
+                    </button>
+                  </div>
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </AppShell>
   );
 }
