@@ -1,9 +1,17 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+﻿import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, require_admin
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    hash_password,
+    verify_firebase_id_token,
+    verify_password,
+)
 from app.database.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserUpdate
@@ -13,6 +21,10 @@ router = APIRouter(
     prefix="/api/auth",
     tags=["Authentication"]
 )
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str
 
 
 @router.post(
@@ -73,6 +85,61 @@ def login_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password"
         )
+
+    if user.role == "organiser" and not user.is_approved:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your organiser account is awaiting admin approval"
+        )
+
+    access_token = create_access_token(
+        data={"sub": str(user.id), "role": user.role}
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "role": user.role
+    }
+
+
+@router.post("/google")
+def google_login(
+    payload: GoogleAuthRequest,
+    db: Session = Depends(get_db)
+):
+    firebase_claims = verify_firebase_id_token(payload.id_token)
+    if not firebase_claims:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired Google sign-in token"
+        )
+
+    email = firebase_claims.get("email")
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Google account did not provide an email address"
+        )
+
+    normalized_email = email.strip().lower()
+    user = db.query(User).filter(User.email == normalized_email).first()
+
+    if not user:
+        display_name = (
+            firebase_claims.get("name")
+            or normalized_email.split("@")[0]
+        ).strip()
+        user = User(
+            name=display_name,
+            email=normalized_email,
+            hashed_password=hash_password(secrets.token_urlsafe(32)),
+            role="student",
+            is_approved=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
     if user.role == "organiser" and not user.is_approved:
         raise HTTPException(
