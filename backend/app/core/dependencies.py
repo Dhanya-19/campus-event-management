@@ -1,10 +1,9 @@
-
-from fastapi import Depends, HTTPException, status
+﻿from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
-from app.core.config import SECRET_KEY, ALGORITHM
+from app.core.config import ALGORITHM, SECRET_KEY
 from app.database.database import get_db
 from app.models.user import User
 
@@ -44,6 +43,7 @@ def get_current_user(
 
     return user
 
+
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(
@@ -52,3 +52,18 @@ def require_admin(current_user: User = Depends(get_current_user)):
         )
     return current_user
 
+
+def require_admin_or_approved_organiser(current_user: User = Depends(get_current_user)):
+    if current_user.role == "admin":
+        return current_user
+    if current_user.role == "organiser":
+        if not current_user.is_approved:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your organiser account is pending admin approval"
+            )
+        return current_user
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Organiser or admin access required"
+    )

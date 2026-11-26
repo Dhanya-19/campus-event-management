@@ -1,25 +1,25 @@
-
-import { Navigate, Outlet } from "react-router-dom";
+﻿import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 interface RoleGuardProps {
-  allowedRole: string;
+  allowedRoles: string[];
 }
 
-export default function RoleGuard({
-  allowedRole,
-}: RoleGuardProps) {
+export default function RoleGuard({ allowedRoles }: RoleGuardProps) {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
   }
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role.toLowerCase() !== allowedRole.toLowerCase()) {
+  const normalizedRole = user.role.toLowerCase();
+  const allowed = allowedRoles.map((r) => r.toLowerCase());
+
+  if (!allowed.includes(normalizedRole)) {
     return <Navigate to="/" replace />;
   }
 
