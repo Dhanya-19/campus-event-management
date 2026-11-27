@@ -66,6 +66,11 @@ export default function EventDetailsPage() {
     if (e) e.preventDefault();
     if (!event) return;
 
+    const confirmed = window.confirm(
+      `Confirm your registration for "${event.title}" at ${event.venue}?`,
+    );
+    if (!confirmed) return;
+
     try {
       setSubmitting(true);
       setMessage("");
@@ -84,6 +89,11 @@ export default function EventDetailsPage() {
   async function handleUnregister() {
     if (!event) return;
 
+    const confirmed = window.confirm(
+      `Are you sure you want to cancel your registration for "${event.title}"?`,
+    );
+    if (!confirmed) return;
+
     try {
       setSubmitting(true);
       setMessage("");
@@ -100,7 +110,9 @@ export default function EventDetailsPage() {
     }
   }
 
-  const closed = event ? registrationStatus(event) === "closed" : false;
+  const closed = event
+    ? Boolean(event.is_closed) || registrationStatus(event) === "closed"
+    : false;
   const isFull = event ? (event.registered_count ?? 0) >= event.max_participants : false;
 
   const details = event
@@ -119,7 +131,7 @@ export default function EventDetailsPage() {
   return (
     <AppShell subtitle="Events & Hackathons" maxWidth="max-w-5xl">
       <button
-        onClick={() => navigate("/student-dashboard")}
+        onClick={() => navigate(-1)}
         className="mb-6 inline-flex items-center gap-2 text-sm text-muted transition-colors hover:text-white"
       >
         <ArrowLeft size={17} />
